@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,9 @@ import com.tangjun.ali.interview.limit.LimitUtil;
 public class ShopService {
 	//日志
 	private Logger log = LoggerFactory.getLogger(this.getClass());
+	private String buySomethingKey = "shopService.buySomething";
+
+	private String doBuyCommitKey = "shopService.doBuyCommit";
 	//限流器
 	private LimitUtil limitUtil;
 	//业务辅助类
@@ -31,7 +35,7 @@ public class ShopService {
 	public ShopService() {
 		this.limitUtil = new LimitUtil(new LimitConfigration());
 		this.dao = new ShopDao();
-		this.helper = new ShopHelper(this.dao.queryTotalProduct(),5);
+		this.helper = new ShopHelper(this.dao.queryTotalProduct(),10);
 	}
 
 	/**
@@ -41,20 +45,30 @@ public class ShopService {
 	 */
 	public boolean buySomething(String req){
 		//通过限流限制
-		if(limitUtil.limit("shopService.buySomething")){
-			if(helper.canBuy()){
-				log.debug("{}通过限流",req);
+		if(limitUtil.limit(buySomethingKey)){
+			AtomicLong txCount = LimitUtil.getTxCount(buySomethingKey);
+			txCount.getAndIncrement();
+//			if(helper.canBuy()){
+//				log.debug("{}通过限流",req);
 				//任务是否添加成功
 				return doBuy(req);
-			}
-			else{
-				log.warn("{}，商品已售罄，请下次再来",req);
-			}
+//				return doBuySample(req);
+//			}
+//			else{
+//				log.warn("{}，商品已售罄，请下次再来",req);
+//			}
 		}
 		else{
 			log.warn("{}，系统繁忙，请稍后再试",req);
 		}
 		return false;
+	}
+
+	private boolean doBuySample(String buyer) {
+		dao.reduceProductNum(1);
+		AtomicLong txCount = LimitUtil.getTxCount(doBuyCommitKey);
+		txCount.getAndIncrement();
+		return true;
 	}
 
 	/**
@@ -63,7 +77,6 @@ public class ShopService {
 	 * @return
 	 */
 	private boolean doBuy(String buyer) {
-		log.debug("{}开始正式消费",buyer);
 		boolean result = false;
 		
 		CountDownLatch latch = new CountDownLatch(1);
@@ -77,12 +90,10 @@ public class ShopService {
 		else{
 			//如果返回空，那么等待其他线程提交
 			try {
-				log.debug("开始阻塞等待countdown");
 				latch.await(1000, TimeUnit.MILLISECONDS);
 			} catch (InterruptedException e) {
 				log.error("线程{}被阻断",Thread.currentThread().getId());
 			}
-			log.debug("当前线程已经醒来，当前countdown值是：{}，buyer是:{}",latch.getCount(),buyer);
 			if(latch.getCount() == 0){
 				//countdown==0说明本线程的请求已经在其他线程提交了，只需验证就可以返回结果了
 				//check something(查询数据库交易记录是否存在，存在则返回购买成功 )
@@ -90,7 +101,6 @@ public class ShopService {
 			}
 			else{
 				//否则就是等待时间到了，需要自己变成一个清道夫提交缓冲区里被剩余的请求
-				log.debug("开始清道夫逻辑");
 				List<ShopHelper.CacheReq> cacheReqs = helper.setAndGetCache();
 				result = doBuyCommit(cacheReqs);
 			}
@@ -110,6 +120,8 @@ public class ShopService {
 			realReq.forEach(r->{
 				r.getLatch().countDown();
 			});
+			AtomicLong txCount = LimitUtil.getTxCount(doBuyCommitKey);
+			txCount.getAndIncrement();
 			return true;
 		}
 		return false;

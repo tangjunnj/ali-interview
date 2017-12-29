@@ -20,7 +20,7 @@ public class LimitUtil {
 
 	private static Map<String,RateLimiter> limiterMap;
 
-	private ReentrantLock lock = new ReentrantLock();
+	private static ReentrantLock lock = new ReentrantLock();
 
 	private static TpsMonitorTask monitor = null;
 
@@ -65,16 +65,14 @@ public class LimitUtil {
 	 */
 	public boolean limit(String key){
 
-		AtomicLong txCount = getTxCount(key);
+
 		if(!configration.isLimit()){
-			txCount.getAndIncrement();
 			return true;
 		}
 
 		RateLimiter limiter = getRateLimiter(key);
 		//如果能获取到一个令牌
 		if(limiter.tryAcquire()){
-			txCount.getAndIncrement();
 			return true;
 		}
 		return false;
@@ -92,7 +90,7 @@ public class LimitUtil {
 		return limiterMap.get(key);
 	}
 
-	private AtomicLong getTxCount(String key) {
+	public static AtomicLong getTxCount(String key) {
 		//初始化事物计数器
 		if(!txCountMap.containsKey(key)){
 			lock.lock();

@@ -39,7 +39,7 @@ public class ShopDao {
 		
 		if(buyers != null){
 			buyers.forEach(str->{
-				log.info("插入购买记录:【{}】购买了一个商品",str);
+//				log.info("插入购买记录:【{}】购买了一个商品",str);
 			});
 		}
 	}

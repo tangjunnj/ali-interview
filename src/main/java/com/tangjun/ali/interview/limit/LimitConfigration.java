@@ -16,7 +16,7 @@ public class LimitConfigration {
 	//监控频率
 	private int monitorDur = 1;
 	//是否打开限流
-	private boolean limit = true;
+	private boolean limit = false;
 	//最大允许吞吐量
 	private int maxTps=10;
 

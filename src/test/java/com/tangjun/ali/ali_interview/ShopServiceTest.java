@@ -25,14 +25,15 @@ public class ShopServiceTest extends TestCase{
 	
 	
 	public void testBuySomething(){
+		int total = 100000;
 		try {
-			for(int i =0;i<20;i++){
+			for(int i =0;i<total;i++){
 				BuySomethingTestThread t = new BuySomethingTestThread(shopService, "buyer"+i);
 				t.start();
 				//模拟请求间隔
-				Thread.sleep((long) (Math.random()*200));
+//				Thread.sleep((long) (Math.random()*200));
 			}
-		} catch (InterruptedException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
@@ -50,7 +51,6 @@ public class ShopServiceTest extends TestCase{
 		@Override
 		public void run() {
 			boolean success = shopService.buySomething(buyer);
-			System.out.println("TEST:"+buyer+"消费"+(success?"成功":"失败"));
 		}
 		
 	}
