@@ -22,7 +22,7 @@ public class ResetRequestCountTask implements Runnable {
 					log.info("system--stop resetLimitCount task");
 					break;
 				}
-				LimitUtil.resetRequestCount();
+//				LimitUtil.resetRequestCount();
 				Thread.currentThread().sleep(1000);
 			}
 		} catch (InterruptedException e) {

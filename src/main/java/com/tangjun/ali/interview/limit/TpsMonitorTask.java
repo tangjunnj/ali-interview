@@ -1,8 +1,14 @@
 package com.tangjun.ali.interview.limit;
 
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** 
 * @author 作者 E-mail: 
@@ -13,6 +19,7 @@ public class TpsMonitorTask implements Runnable {
 
 	private Logger log = LoggerFactory.getLogger(this.getClass());
 	private boolean stop = false;
+
 	//监视频率
 	private int duration = 1;
 	
@@ -23,9 +30,17 @@ public class TpsMonitorTask implements Runnable {
 					log.info("system--TpsMonitorTask stoped");
 					break;
 				}
-				int txCount = LimitUtil.resetTxCount();
-				log.info("当前tps：{}/s", String.format("%.2f",(double)txCount/duration));
-				Thread.currentThread().sleep(duration*1000);
+				Map<String, AtomicLong> txCountMap = LimitUtil.getTxCountMap();
+				if (txCountMap != null) {
+					//只是监控，不用加锁
+					Set<String> keySet = txCountMap.keySet();
+					keySet.forEach(key->{
+						AtomicLong atomicLong = txCountMap.get(key);
+						//实时tps，用完就归0
+						log.info("当前【{}】接口的tps为：{}/s", key,String.format("%.2f",(double)atomicLong.getAndSet(0)/duration));
+					});
+				}
+				Thread.sleep(duration*1000);
 			}
 		} catch (InterruptedException e) {
 			log.error("TpsMonitorTask has been interrupted");

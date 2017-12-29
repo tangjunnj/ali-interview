@@ -41,7 +41,7 @@ public class ShopService {
 	 */
 	public boolean buySomething(String req){
 		//通过限流限制
-		if(limitUtil.limit()){
+		if(limitUtil.limit("shopService.buySomething")){
 			if(helper.canBuy()){
 				log.debug("{}通过限流",req);
 				//任务是否添加成功
@@ -59,7 +59,7 @@ public class ShopService {
 
 	/**
 	 * 合并购买
-	 * @param req
+	 * @param buyer
 	 * @return
 	 */
 	private boolean doBuy(String buyer) {
@@ -72,19 +72,7 @@ public class ShopService {
 		List<ShopHelper.CacheReq> realReq = helper.cacheReq(cacheReq);
 		//如果不为空，那么当前线程作为提交者
 		if(realReq != null && !realReq.isEmpty()){
-			log.debug("realReq.size={}",realReq.size());
-			dao.reduceProductNum(realReq.size());
-			
-			List<String> buyers = new ArrayList<String>();
-			realReq.forEach(r->{
-				buyers.add(r.getBuyer());
-			});
-			dao.createDealLog(buyers);
-			//提交成功后countDown所有的latch
-			realReq.forEach(r->{
-				r.getLatch().countDown();
-			});
-			result = true;
+			result = doBuyCommit(realReq);
 		}
 		else{
 			//如果返回空，那么等待其他线程提交
@@ -94,27 +82,25 @@ public class ShopService {
 			} catch (InterruptedException e) {
 				log.error("线程{}被阻断",Thread.currentThread().getId());
 			}
-			log.debug("当前线程latch的count数是：{},buyer是：{}",latch.getCount(),buyer);
+			log.debug("当前线程已经醒来，当前countdown值是：{}，buyer是:{}",latch.getCount(),buyer);
 			if(latch.getCount() == 0){
-				//查询数据库交易记录是否存在，存在则返回购买成功 
-				//do something
+				//countdown==0说明本线程的请求已经在其他线程提交了，只需验证就可以返回结果了
+				//check something(查询数据库交易记录是否存在，存在则返回购买成功 )
 				result = true;
 			}
 			else{
-				//否则就是时间到了，需要自己变成提交者强行提交
-				log.debug("开始强制提交消费请求");
-				result = _commitReq( helper.setAndGetCache());
+				//否则就是等待时间到了，需要自己变成一个清道夫提交缓冲区里被剩余的请求
+				log.debug("开始清道夫逻辑");
+				List<ShopHelper.CacheReq> cacheReqs = helper.setAndGetCache();
+				result = doBuyCommit(cacheReqs);
 			}
 		}
 		return result;
 	}
 
-	private boolean _commitReq( List<ShopHelper.CacheReq> realReq) {
-		//如果不为空，那么当前线程作为提交者
+	private boolean doBuyCommit(List<ShopHelper.CacheReq> realReq) {
 		if(realReq != null && !realReq.isEmpty()){
-			log.debug("realReq.size={}",realReq.size());
 			dao.reduceProductNum(realReq.size());
-			
 			List<String> buyers = new ArrayList<String>();
 			realReq.forEach(r->{
 				buyers.add(r.getBuyer());

@@ -1,6 +1,13 @@
 package com.tangjun.ali.interview.limit;
 
+import com.google.common.util.concurrent.RateLimiter;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /** 
 * @author 作者 E-mail: 
@@ -10,48 +17,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LimitUtil {
 	
 	private LimitConfigration configration = null;
-	
-	private ResetRequestCountTask reset = null;
-	
-	private TpsMonitorTask monitor = null;
-	
-	//请求记录值
-	private static AtomicInteger requestCount = new AtomicInteger(0);
+
+	private static Map<String,RateLimiter> limiterMap;
+
+	private ReentrantLock lock = new ReentrantLock();
+
+	private static TpsMonitorTask monitor = null;
+
 	//通过请求值
-	private static AtomicInteger txCount = new AtomicInteger(0);
-	
+	private static Map<String,AtomicLong> txCountMap;
+
 	public LimitUtil(LimitConfigration configration) {
 		if(configration == null){
 			throw new NullPointerException();
 		}
 		this.configration = configration;
-		if(configration.isLimit()){
-			start();
-		}
-	}
-
-	/**
-	 * 启动
-	 */
-	public void start(){
-		//启动归0和监视线程
-		initResetTask();
+		limiterMap = new ConcurrentHashMap<>();
+		txCountMap = new ConcurrentHashMap<>();
 		initMonitorTask();
+
 	}
 	/**
 	 * 停止
 	 */
-	public void shutDown(){
+	public static void shutDown(){
 		//停止归0和监视线程
-		if(reset != null){
-			reset.stopGracful();
-		}
 		if(monitor != null){
 			monitor.stopGracful();
 		}
 	}
-	
-	
+
+
 	/**
 	 * 启动一个监视TPS的任务
 	 */
@@ -63,46 +59,56 @@ public class LimitUtil {
 
 
 	/**
-	 * 启动一个requstCount定期复0的任务
-	 */
-	private void initResetTask() {
-		reset = new ResetRequestCountTask();
-		Thread t = new Thread(reset);
-		t.start();
-	}
-	
-	/**
-	 * 重置请求计数
-	 */
-	public static void resetRequestCount(){
-		requestCount.set(0);
-	}
-
-	/**
-	 * 重置事务计数器
-	 * @return 重置前的值
-	 */
-	public static int resetTxCount(){
-		return txCount.getAndSet(0);
-	}
-	
-	/**
 	 * 限流
+	 * @param key 限流对象的标识符
 	 * @return 是否可以发起一个业务
 	 */
-	public boolean limit(){
+	public boolean limit(String key){
+
+		AtomicLong txCount = getTxCount(key);
 		if(!configration.isLimit()){
+			txCount.getAndIncrement();
 			return true;
 		}
-		//如果小于最大tps
-		int currCount = requestCount.incrementAndGet();
-		if(currCount <= configration.getMaxTps()){
-			txCount.incrementAndGet();
+
+		RateLimiter limiter = getRateLimiter(key);
+		//如果能获取到一个令牌
+		if(limiter.tryAcquire()){
+			txCount.getAndIncrement();
 			return true;
 		}
 		return false;
 	}
 
-	
-	
+	private RateLimiter getRateLimiter(String key) {
+		//添加限流器
+		if (!limiterMap.containsKey(key)) {
+			lock.lock();
+			if(!limiterMap.containsKey(key)){
+				limiterMap.put(key,RateLimiter.create(configration.getMaxTps()));
+			}
+			lock.unlock();
+		}
+		return limiterMap.get(key);
+	}
+
+	private AtomicLong getTxCount(String key) {
+		//初始化事物计数器
+		if(!txCountMap.containsKey(key)){
+			lock.lock();
+			if(!txCountMap.containsKey(key)){
+				txCountMap.put(key,new AtomicLong(0));
+			}
+			lock.unlock();
+		}
+		return txCountMap.get(key);
+	}
+
+	public static Map<String, AtomicLong> getTxCountMap() {
+		return txCountMap;
+	}
+
+	public static void setTxCountMap(Map<String, AtomicLong> txCountMap) {
+		LimitUtil.txCountMap = txCountMap;
+	}
 }

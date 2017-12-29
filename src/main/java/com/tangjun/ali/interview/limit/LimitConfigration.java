@@ -1,9 +1,8 @@
 package com.tangjun.ali.interview.limit;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URL;
 import java.util.Properties;
 
 import org.slf4j.Logger;
@@ -30,9 +29,9 @@ public class LimitConfigration {
 
 	private void init() {
 		try {
-			
-			Properties prop = new Properties();  
-			prop.load(this.getClass().getResourceAsStream(CONFIG));  
+
+			Properties prop = new Properties();
+			prop.load(this.getClass().getResourceAsStream(CONFIG));
 			String monitorDurStr = prop.getProperty("monitorDur");
 			String maxTpsStr = prop.getProperty("maxTps");
 			String limitStr = prop.getProperty("limit");

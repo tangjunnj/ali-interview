@@ -1,36 +1,29 @@
 package com.tangjun.ali.ali_interview;
 
-import static org.junit.Assert.*;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.tangjun.ali.interview.limit.LimitUtil;
 import com.tangjun.ali.interview.service.ShopService;
+import junit.framework.TestCase;
 
 /** 
 * @author 作者 E-mail: 
 * @version 创建时间：2017年12月28日 下午11:32:51 
 * 类说明 
 */
-public class ShopServiceTest {
+public class ShopServiceTest extends TestCase{
 	private ShopService shopService;
 	
-	@Before
 	public void setUp() throws Exception {
 		shopService = new ShopService();
 	}
 
 	
-	@After
 	public void tearDown() throws Exception {
-		//等待强制提交结束
+		//等待清道夫逻辑结束
 		Thread.sleep(2000);
+		LimitUtil.shutDown();
 	}
 	
 	
-	@Test
 	public void testBuySomething(){
 		try {
 			for(int i =0;i<20;i++){
