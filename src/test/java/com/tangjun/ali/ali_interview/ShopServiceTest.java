@@ -26,7 +26,7 @@ public class ShopServiceTest extends TestCase{
 	
 	public void testBuySomething(){
 		try {
-			for(int i =0;i<20;i++){
+			for(int i =0;i<1000;i++){
 				BuySomethingTestThread t = new BuySomethingTestThread(shopService, "buyer"+i);
 				t.start();
 				//模拟请求间隔

@@ -22,7 +22,7 @@ public class TpsMonitorTask implements Runnable {
 
 	//监视频率
 	private int duration = 1;
-	
+	private long begin = 0;
 	public void run() {
 		try {
 			for(;;){
@@ -30,14 +30,17 @@ public class TpsMonitorTask implements Runnable {
 					log.info("system--TpsMonitorTask stoped");
 					break;
 				}
+				if(begin == 0){
+					begin = System.currentTimeMillis();
+				}
 				Map<String, AtomicLong> txCountMap = LimitUtil.getTxCountMap();
 				if (txCountMap != null) {
 					//只是监控，不用加锁
 					Set<String> keySet = txCountMap.keySet();
 					keySet.forEach(key->{
 						AtomicLong atomicLong = txCountMap.get(key);
-						//实时tps，用完就归0
-						log.info("当前【{}】接口的tps为：{}/s", key,String.format("%.2f",(double)atomicLong.getAndSet(0)/duration));
+						long sec = (System.currentTimeMillis()-begin)/1000;
+						log.info("当前【{}】接口的tps为：{}/s", key,String.format("%.2f",(double)atomicLong.get()/sec));
 					});
 				}
 				Thread.sleep(duration*1000);
